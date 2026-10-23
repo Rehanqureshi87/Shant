@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Shaant – voiceover noise cleaner</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap">
+<style>
+:root{--bg:#E8EDF3;--surface:#FFFFFF;--ink:#0F1B2D;--muted:#5A6A7E;--line:#CBD5E1;--accent:#3D5AFE;--on-accent:#FFFFFF;--orig:#9FADBF;color-scheme:light;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0B111B;--surface:#141C2B;--ink:#E7EDF7;--muted:#8C9BB0;--line:#26324A;--accent:#8AA2FF;--on-accent:#0B111B;--orig:#3B4963;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0B111B;--surface:#141C2B;--ink:#E7EDF7;--muted:#8C9BB0;--line:#26324A;--accent:#8AA2FF;--on-accent:#0B111B;--orig:#3B4963;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.5 "Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:560px;margin:0 auto;padding:28px 18px 48px}
+h1{font-size:44px;line-height:1;margin:0 0 8px;font-weight:800;letter-spacing:-.02em}
+.sub{color:var(--muted);margin:0 0 24px;max-width:46ch}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:18px;margin-bottom:14px}
+.pick{display:block;border:2px dashed var(--line);border-radius:14px;padding:22px 14px;text-align:center;font-weight:600;cursor:pointer}
+.pick:focus-within,.pick:hover{border-color:var(--accent)}
+.pick input{position:absolute;opacity:0;width:1px;height:1px}
+#info{margin:10px 0 0;color:var(--muted);font-size:14px;word-break:break-all}
+label.row{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 6px;font-weight:600}
+output{color:var(--accent);font-weight:800}
+input[type=range]{width:100%;accent-color:var(--accent);margin:0 0 14px}
+.chk{display:flex;gap:10px;align-items:center;margin:8px 0;font-size:15px}
+.chk input{width:20px;height:20px;accent-color:var(--accent)}
+button{font:inherit;font-weight:600;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:12px 16px;min-height:48px;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+button.main{width:100%;background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-size:17px}
+button:disabled{opacity:.45;cursor:not-allowed}
+.prog{height:6px;background:var(--line);border-radius:3px;margin-top:12px;overflow:hidden}
+.prog div{height:100%;width:0;background:var(--accent)}
+#status{min-height:22px;margin:10px 0 0;font-size:14px;color:var(--muted)}
+canvas{width:100%;height:150px;display:block;border-radius:10px;background:var(--bg)}
+.legend{display:flex;gap:16px;font-size:13px;color:var(--muted);margin:8px 0 14px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.btns .full{grid-column:1/-1}
+.note{font-size:13px;color:var(--muted);margin:10px 0 0}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+<h1>Shaant</h1>
+<p class="sub">Voiceover ka background noise hatao. Sab kuch phone me hi hota hai, file kahin upload nahi hoti.</p>
+
+<section class="card">
+<label class="pick"><input type="file" id="file" accept="audio/*,video/*">Audio ya video file chuno</label>
+<p id="info"></p>
+</section>
+
+<section class="card" id="opts" hidden>
+<label class="row" for="amt">Kitna saaf karna hai <output id="amtv">55</output></label>
+<input type="range" id="amt" min="10" max="100" value="55">
+<label class="chk"><input type="checkbox" id="hp" checked> Low hum aur rumble hatao</label>
+<label class="chk"><input type="checkbox" id="nm" checked> Volume barabar karo</label>
+<p class="note">Zyada slider = zyada noise kategi, par awaaz thodi robotic ho sakti hai. 40 se 70 ke beech try karo.</p>
+<div style="height:14px"></div>
+<button class="main" id="go">Saaf karo</button>
+<div class="prog" id="prog" hidden><div id="bar"></div></div>
+</section>
+
+<p id="status" role="status" aria-live="polite"></p>
+
+<section class="card" id="res" hidden>
+<canvas id="wave" aria-label="Awaaz ka waveform"></canvas>
+<div class="legend"><span><i style="background:var(--orig)"></i>Original</span><span><i style="background:var(--accent)"></i>Saaf</span></div>
+<div class="btns">
+<button id="po">Original sunao</button>
+<button id="pc">Saaf sunao</button>
+<button id="st" class="full">Roko</button>
+</div>
+<button class="main" id="dl">WAV download karo</button>
+<p class="note">Download zip file me aayegi. Zip kholo, andar WAV hai, use seedha apne editor me daal do.</p>
+</section>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+const N=2048,H=512,B=N/2+1;
+const win=new Float32Array(N).map((_,i)=>0.5-0.5*Math.cos(2*Math.PI*i/N));
+const cosT=new Float32Array(N/2).map((_,k)=>Math.cos(2*Math.PI*k/N));
+const sinT=new Float32Array(N/2).map((_,k)=>Math.sin(2*Math.PI*k/N));
+const rev=new Uint16Array(N);
+for(let i=0;i<N;i++){let r=0;for(let b=0;b<11;b++)if(i&(1<<b))r|=1<<(10-b);rev[i]=r}
+function fft(re,im,inv){
+  for(let i=0;i<N;i++){const j=rev[i];if(j>i){let t=re[i];re[i]=re[j];re[j]=t;t=im[i];im[i]=im[j];im[j]=t}}
+  for(let size=2;size<=N;size<<=1){
+    const half=size>>1,step=N/size;
+    for(let s=0;s<N;s+=size)for(let k=0;k<half;k++){
+      const wr=cosT[k*step],wi=(inv?1:-1)*sinT[k*step],a=s+k,b=a+half;
+      const tr=re[b]*wr-im[b]*wi,ti=re[b]*wi+im[b]*wr;
+      re[b]=re[a]-tr;im[b]=im[a]-ti;re[a]+=tr;im[a]+=ti;
+    }
+  }
+  if(inv)for(let i=0;i<N;i++){re[i]/=N;im[i]/=N}
+}
+
+let ctx=null,orig=null,clean=null,sr=44100,src=null,fname='audio',peak0=1;
+const ac=()=>ctx||(ctx=new(window.AudioContext||window.webkitAudioContext)());
+const say=t=>{$('status').textContent=t};
+
+$('amt').oninput=e=>{$('amtv').textContent=e.target.value};
+
+$('file').onchange=async e=>{
+  const f=e.target.files[0];if(!f)return;
+  stop();clean=null;$('res').hidden=true;$('opts').hidden=true;
+  fname=f.name.replace(/\.[^.]+$/,'').replace(/[^\w.-]+/g,'_')||'audio';
+  $('info').textContent=f.name;say('Audio padh raha hoon…');
+  try{
+    const ab=await ac().decodeAudioData(await f.arrayBuffer());
+    sr=ab.sampleRate;
+    const L=ab.length,m=new Float32Array(L),n=ab.numberOfChannels;
+    for(let c=0;c<n;c++){const d=ab.getChannelData(c);for(let i=0;i<L;i++)m[i]+=d[i]/n}
+    orig=m;peak0=0;for(let i=0;i<L;i+=4)peak0=Math.max(peak0,Math.abs(m[i]));peak0=peak0||1;
+    const s=Math.round(L/sr);
+    $('info').textContent=f.name+'  ·  '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+    if(L<N*8){orig=null;say('File bahut chhoti hai. Kam se kam 1 second ki audio chahiye.');return}
+    $('opts').hidden=false;say(s>900?'File lambi hai (15 min se zyada). Processing me time lag sakta hai.':'Taiyaar. Slider set karo aur Saaf karo dabao.');
+  }catch(err){orig=null;say('Ye file nahi khuli. MP3, WAV, M4A ya MP4 try karo.')}
+};
+
+function highpass(x,fc){
+  const w=2*Math.PI*fc/sr,c=Math.cos(w),al=Math.sin(w)/1.4142,a0=1+al;
+  const b0=(1+c)/2/a0,b1=-(1+c)/a0,b2=b0,a1=-2*c/a0,a2=(1-al)/a0;
+  const y=new Float32Array(x.length);let x1=0,x2=0,y1=0,y2=0;
+  for(let i=0;i<x.length;i++){const v=x[i],o=b0*v+b1*x1+b2*x2-a1*y1-a2*y2;x2=x1;x1=v;y2=y1;y1=o;y[i]=o}
+  return y;
+}
+
+async function denoise(x,s,prog){
+  const len=x.length,xp=new Float32Array(len+2*N);xp.set(x,N);
+  const fr=[];
+  for(let p=0;p+N<=len;p+=N){let e=0;for(let i=0;i<N;i++){const v=x[p+i];e+=v*v}fr.push([e,p])}
+  fr.sort((a,b)=>a[0]-b[0]);
+  const take=fr.slice(0,Math.max(4,Math.ceil(fr.length*0.1)));
+  const re=new Float32Array(N),im=new Float32Array(N),raw=new Float32Array(B),noise=new Float32Array(B);
+  for(const [,p] of take){
+    for(let i=0;i<N;i++){re[i]=x[p+i]*win[i];im[i]=0}
+    fft(re,im,false);
+    for(let k=0;k<B;k++)raw[k]+=Math.hypot(re[k],im[k])/take.length;
+  }
+  for(let k=0;k<B;k++){let a=0,c=0;for(let j=-2;j<=2;j++){const q=k+j;if(q>=0&&q<B){a+=raw[q];c++}}noise[k]=a/c}
+  const out=new Float32Array(xp.length),gp=new Float32Array(B).fill(1),g=new Float32Array(B);
+  const alpha=1+s*2.5,fl=0.05+(1-s)*0.2,total=Math.floor((xp.length-N)/H)+1;
+  for(let t=0;t<total;t++){
+    const p=t*H;
+    for(let i=0;i<N;i++){re[i]=xp[p+i]*win[i];im[i]=0}
+    fft(re,im,false);
+    for(let k=0;k<B;k++){const m=Math.hypot(re[k],im[k])+1e-9;g[k]=Math.max(fl,1-alpha*noise[k]/m)}
+    for(let k=0;k<B;k++){
+      let v=(g[Math.max(0,k-1)]+2*g[k]+g[Math.min(B-1,k+1)])/4;const q=gp[k];
+      v=v>q?0.5*q+0.5*v:0.85*q+0.15*v;gp[k]=v;
+      re[k]*=v;im[k]*=v;
+      if(k>0&&k<N/2){re[N-k]*=v;im[N-k]*=v}
+    }
+    fft(re,im,true);
+    for(let i=0;i<N;i++)out[p+i]+=re[i]*win[i]/1.5;
+    if(t%120===0){prog(t/total);await new Promise(r=>setTimeout(r))}
+  }
+  return out.slice(N,N+len);
+}
+
+$('go').onclick=async()=>{
+  if(!orig)return;
+  stop();$('go').disabled=true;$('prog').hidden=false;$('bar').style.width='0';say('Noise saaf ho raha hai…');
+  try{
+    let x=orig;if($('hp').checked)x=highpass(x,80);
+    let y=await denoise(x,$('amt').value/100,p=>{$('bar').style.width=(p*100)+'%'});
+    if($('nm').checked){let pk=0;for(let i=0;i<y.length;i++)pk=Math.max(pk,Math.abs(y[i]));if(pk>0){const k=0.89/pk;for(let i=0;i<y.length;i++)y[i]*=k}}
+    clean=y;$('res').hidden=false;draw();say('Ho gaya. Pehle sunke compare karo, phir download.');
+    $('res').scrollIntoView({behavior:'smooth',block:'start'});
+  }catch(err){say('Kuch gadbad hui. Dobara try karo ya chhoti file chuno.')}
+  $('go').disabled=false;$('prog').hidden=true;
+};
+
+function draw(){
+  if(!orig)return;
+  const c=$('wave'),r=c.getBoundingClientRect(),d=window.devicePixelRatio||1;
+  c.width=Math.round(r.width*d);c.height=Math.round(r.height*d);
+  const g=c.getContext('2d');g.scale(d,d);
+  const W=r.width,mid=r.height/2,cs=getComputedStyle(document.documentElement);
+  const layer=(a,col)=>{
+    g.fillStyle=col.trim();const bins=Math.floor(W/3),step=a.length/bins,sk=Math.max(1,Math.floor(step/200));
+    for(let i=0;i<bins;i++){let m=0;for(let j=Math.floor(i*step);j<(i+1)*step;j+=sk)m=Math.max(m,Math.abs(a[j]||0));
+      const h=Math.min(mid,Math.max(1,m/peak0*mid*0.95));g.fillRect(i*3,mid-h,2,h*2)}
+  };
+  layer(orig,cs.getPropertyValue('--orig'));if(clean)layer(clean,cs.getPropertyValue('--accent'));
+}
+addEventListener('resize',draw);
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',draw);
+
+function play(a){
+  stop();if(!a)return;
+  const x=ac();x.resume();
+  const b=x.createBuffer(1,a.length,x.sampleRate);b.copyToChannel(a,0);
+  src=x.createBufferSource();src.buffer=b;src.connect(x.destination);src.start();
+}
+function stop(){if(src){try{src.stop()}catch(e){}src=null}}
+$('po').onclick=()=>play(orig);$('pc').onclick=()=>play(clean);$('st').onclick=stop;
+
+function wav(d){
+  const b=new ArrayBuffer(44+d.length*2),v=new DataView(b);
+  const w=(o,s)=>{for(let i=0;i<s.length;i++)v.setUint8(o+i,s.charCodeAt(i))};
+  w(0,'RIFF');v.setUint32(4,36+d.length*2,true);w(8,'WAVEfmt ');v.setUint32(16,16,true);
+  v.setUint16(20,1,true);v.setUint16(22,1,true);v.setUint32(24,sr,true);v.setUint32(28,sr*2,true);
+  v.setUint16(32,2,true);v.setUint16(34,16,true);w(36,'data');v.setUint32(40,d.length*2,true);
+  for(let i=0;i<d.length;i++){const s=Math.max(-1,Math.min(1,d[i]));v.setInt16(44+i*2,s<0?s*32768:s*32767,true)}
+  return new Uint8Array(b);
+}
+const CT=new Uint32Array(256).map((_,n)=>{let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;return c>>>0});
+function crc(u){let c=~0;for(let i=0;i<u.length;i++)c=CT[(c^u[i])&255]^(c>>>8);return ~c>>>0}
+function zip(fn,data){
+  const nm=new TextEncoder().encode(fn),c=crc(data),n=nm.length,len=data.length;
+  const out=new Uint8Array(30+n+len+46+n+22),v=new DataView(out.buffer);let o=0;
+  const u32=x=>{v.setUint32(o,x,true);o+=4},u16=x=>{v.setUint16(o,x,true);o+=2};
+  u32(0x04034b50);u16(20);u16(0);u16(0);u16(0);u16(0x21);u32(c);u32(len);u32(len);u16(n);u16(0);
+  out.set(nm,o);o+=n;out.set(data,o);o+=len;
+  const cd=o;
+  u32(0x02014b50);u16(20);u16(20);u16(0);u16(0);u16(0);u16(0x21);u32(c);u32(len);u32(len);u16(n);u16(0);u16(0);u16(0);u16(0);u32(0);u32(0);
+  out.set(nm,o);o+=n;
+  u32(0x06054b50);u16(0);u16(0);u16(1);u16(1);u32(46+n);u32(cd);u16(0);
+  return out;
+}
+
+$('dl').onclick=async()=>{
+  if(!clean)return;
+  try{
+    const d=window.claude?await window.claude.use('downloads'):null;
+    if(!d){say('Download is view me available nahi hai. Artifact claude.ai me kholo.');return}
+    const z=zip(fname+'_clean.wav',wav(clean));
+    await d.save({filename:fname+'_clean.zip',data:new Blob([z])});
+    say('Download shuru ho gaya.');
+  }catch(e){say(e&&e.code==='declined'?'Download cancel kar diya.':'Download nahi ho paaya. Dobara try karo.')}
+};
+</script>
+</body>
+</html>
